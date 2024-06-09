@@ -2,30 +2,29 @@ import {
     createSetCustomFieldAction
 } from './payment-utils.js'
 import c from '../config/constants.js'
-import {updatePaydockStatus} from "../service/web-component-service.js";
+import {updatePowerboardStatus} from "../service/web-component-service.js";
 import httpUtils from "../utils.js";
-import config from "../config/config.js";
 
 async function execute(paymentObject) {
     const paymentExtensionRequest = JSON.parse(
         paymentObject?.custom?.fields?.PaymentExtensionRequest
     )
-    const orderNumber = paymentObject.id;
     const actions = []
     const requestBodyJson = paymentExtensionRequest.request;
     const newStatus = requestBodyJson.newStatus;
-    const oldStatus = paymentObject.custom.fields.PaydockPaymentStatus;
-    let chargeId = paymentObject.custom.fields?.PaydockTransactionId;
+    const orderNumber = paymentObject.id;
+    const oldStatus = paymentObject.custom.fields.PowerboardPaymentStatus;
+    let chargeId = paymentObject.custom.fields?.PowerboardTransactionId;
     let errorMessage = null;
+    let responseAPI;
     let paymentStatus;
     let orderStatus;
-    let responseAPI;
     let refundedAmount = 0;
     try {
         switch (newStatus) {
             case c.STATUS_TYPES.PAID:
                 if (oldStatus === c.STATUS_TYPES.AUTHORIZE) {
-                    responseAPI = await updatePaydockStatus(`/v1/charges/${chargeId}/capture`, 'post', {});
+                    responseAPI = await updatePowerboardStatus(`/v1/charges/${chargeId}/capture`, 'post', {});
                 }else{
                     errorMessage =  "Charge not found or not in the desired state";
                 }
@@ -34,7 +33,7 @@ async function execute(paymentObject) {
                 break;
             case c.STATUS_TYPES.CANCELLED:
                 if (oldStatus === c.STATUS_TYPES.AUTHORIZE || oldStatus === c.STATUS_TYPES.PAID) {
-                    responseAPI = await updatePaydockStatus(`/v1/charges/${chargeId}/capture`, 'delete', {});
+                    responseAPI = await updatePowerboardStatus(`/v1/charges/${chargeId}/capture`, 'delete', {});
                 }else{
                     errorMessage =  "Charge not found or not in the desired state";
                 }
@@ -46,7 +45,7 @@ async function execute(paymentObject) {
                 if (oldStatus === c.STATUS_TYPES.P_REFUND || oldStatus === c.STATUS_TYPES.PAID) {
                     const oldRefundedAmount = paymentObject?.custom?.fields?.RefundedAmount || 0;
                     refundedAmount = oldRefundedAmount + requestBodyJson.refundAmount;
-                    responseAPI = await updatePaydockStatus(`/v1/charges/${chargeId}/refunds`, 'post', {
+                    responseAPI = await updatePowerboardStatus(`/v1/charges/${chargeId}/refunds`, 'post', {
                         amount: requestBodyJson.refundAmount,
                         from_webhook: true
                     });
@@ -60,22 +59,25 @@ async function execute(paymentObject) {
                 throw new Error(`Unsupported status change from ${oldStatus} to ${newStatus}`);
         }
     } catch (err) {
-        errorMessage = err.message;
+        console.error('Error handling status change:', err);
+        return {actions: [], error: err.message};
     }
-    if(errorMessage){
+
+     if(errorMessage){
         actions.push(createSetCustomFieldAction(c.CTP_INTERACTION_PAYMENT_EXTENSION_RESPONSE, {status: false, message: errorMessage}));
         return {
             actions,
         }
     }
+
     let message = `Change status from '${oldStatus}' to '${newStatus}'`;
     if (responseAPI) {
         if (responseAPI.status === "Success") {
             if (responseAPI.chargeId && responseAPI.chargeId !== chargeId) {
                 chargeId = responseAPI.chargeId;
-                actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_PAYDOCK_TRANSACTION_ID, chargeId))
+                actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_POAWRBOARD_TRANSACTION_ID, chargeId))
             }
-            actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_PAYDOCK_PAYMENT_STATUS, newStatus))
+            actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_POAWRBOARD_PAYMENT_STATUS, newStatus))
             if (refundedAmount) {
                 actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_REFUNDED_AMOUNT, refundedAmount))
             }
@@ -83,7 +85,7 @@ async function execute(paymentObject) {
             errorMessage = responseAPI.message ?? `Incorrect operation: ${message}`;
         }
     } else {
-        errorMessage = `Incorrect operation: ${message}`;
+        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_POAWRBOARD_PAYMENT_STATUS, newStatus))
     }
 
 
@@ -93,8 +95,8 @@ async function execute(paymentObject) {
         response.message = "Merchant refunded money"
         message = `Refunded ${requestBodyJson.refundAmount}`
     }
-    await httpUtils.addPaydockLog({
-        paydockChargeID: chargeId,
+    await httpUtils.addPowerboardLog({
+        powerboardChargeID: chargeId,
         operation: newStatus,
         responseStatus,
         message
@@ -107,7 +109,6 @@ async function execute(paymentObject) {
         actions,
     }
 }
-
 
 
 async function updateOrderStatus(
@@ -137,5 +138,6 @@ async function updateOrderStatus(
         console.log(error)
     }
 }
+
 
 export default {execute}

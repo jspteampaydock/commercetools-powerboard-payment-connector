@@ -1,7 +1,7 @@
 import config from '../config/config.js'
 
 function getStoredCredential(ctpProjectKey) {
-  const ctpConfig = config.getPaydockConfig(ctpProjectKey)
+  const ctpConfig = config.getPowerboardConfig(ctpProjectKey)
   let storedCredential = null
   if (ctpConfig.authentication) {
     storedCredential = {
@@ -40,7 +40,7 @@ function getAuthorizationRequestHeader(request) {
 }
 
 function generateBasicAuthorizationHeaderValue(ctpProjectKey) {
-  const ctpConfig = config.getPaydockConfig(ctpProjectKey)
+  const ctpConfig = config.getPowerboardConfig(ctpProjectKey)
   if (
     ctpConfig?.authentication?.username &&
     ctpConfig?.authentication?.password

@@ -24,34 +24,33 @@ async function execute(paymentObject) {
         'getVaultTokenResponse',
         'PaymentExtensionRequest'
     ];
+
     const [response] = await Promise.all([makePayment(makePaymentRequestObj)])
     if (response.status === 'Failure') {
         const errorMessage = response.message ?? "Invalid transaction details"
-        actions.push(createSetCustomFieldAction(c.CTP_INTERACTION_PAYMENT_EXTENSION_RESPONSE, JSON.stringify({
-            status: "Failure",
-            message: errorMessage
-        })));
-        paymentActions = await deleteCustomFields(actions, paymentObject, customFieldsToDelete);
+        actions.push(createSetCustomFieldAction(c.CTP_INTERACTION_PAYMENT_EXTENSION_RESPONSE,  JSON.stringify( {status : "Failure", message : errorMessage})));
+        paymentActions = await  deleteCustomFields(actions, paymentObject, customFieldsToDelete);
         return {
             actions: paymentActions
         };
     }
+
     const requestBodyJson = JSON.parse(paymentObject?.custom?.fields?.makePaymentRequest);
 
-    const paymentMethod = requestBodyJson?.PaydockPaymentType;
-    const paydockTransactionId = response?.chargeId ?? requestBodyJson?.PaydockTransactionId;
-    const paydockStatus = response?.paydockStatus ?? requestBodyJson?.PaydockPaymentStatus;
+    const paymentMethod = requestBodyJson?.PowerboardPaymentType;
+    const powerboardTransactionId = response?.chargeId ?? requestBodyJson?.PowerboardTransactionId;
+    const powerboardStatus = response?.powerboardStatus ?? requestBodyJson?.PowerboardPaymentStatus;
     const commerceToolsUserId = requestBodyJson?.CommerceToolsUserId;
     const additionalInfo = requestBodyJson?.AdditionalInfo;
 
     if (paymentMethod) {
-        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_PAYDOCK_PAYMENT_TYPE, paymentMethod));
+        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_POAWRBOARD_PAYMENT_TYPE, paymentMethod));
     }
-    if (paydockStatus) {
-        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_PAYDOCK_PAYMENT_STATUS, paydockStatus));
+    if(powerboardStatus) {
+        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_POAWRBOARD_PAYMENT_STATUS, powerboardStatus));
     }
-    if (paydockTransactionId) {
-        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_PAYDOCK_TRANSACTION_ID, paydockTransactionId));
+    if (powerboardTransactionId) {
+        actions.push(createSetCustomFieldAction(c.CTP_CUSTOM_FIELD_POAWRBOARD_TRANSACTION_ID, powerboardTransactionId));
     }
 
     if (commerceToolsUserId) {
@@ -78,8 +77,8 @@ async function execute(paymentObject) {
         actions.push(addTransactionAction)
     }
 
-    if (paydockStatus) {
-        const {orderState, orderPaymentState} = await getCommercetoolsStatusesByPaydockStatus(paydockStatus)
+    if (powerboardStatus) {
+        const {orderState, orderPaymentState} = await getCommercetoolsStatusesByPowerboardStatus(powerboardStatus)
         actions.push(createSetCustomFieldAction(c.CTP_INTERACTION_PAYMENT_EXTENSION_RESPONSE, JSON.stringify({
             orderPaymentStatus: orderPaymentState,
             orderStatus: orderState
@@ -87,34 +86,34 @@ async function execute(paymentObject) {
     } else {
         customFieldsToDelete.push(c.CTP_INTERACTION_PAYMENT_EXTENSION_RESPONSE)
     }
-    paymentActions = await deleteCustomFields(actions, paymentObject, customFieldsToDelete)
+
+    paymentActions = await  deleteCustomFields(actions, paymentObject, customFieldsToDelete)
     return {
         actions: paymentActions
     }
 }
 
-
-async function getCommercetoolsStatusesByPaydockStatus(paydockStatus) {
+async function getCommercetoolsStatusesByPowerboardStatus(powerboardStatus) {
     let orderPaymentState
     let orderState
 
-    switch (paydockStatus) {
-        case 'paydock-paid':
+    switch (powerboardStatus) {
+        case 'powerboard-paid':
             orderPaymentState = 'Paid'
             orderState = 'Open'
             break
-        case 'paydock-pending':
-        case 'paydock-authorize':
-        case 'paydock-requested':
+        case 'powerboard-pending':
+        case 'powerboard-authorize':
+        case 'powerboard-requested':
             orderPaymentState = 'Pending'
             orderState = 'Open'
             break
-        case 'paydock-cancelled':
-        case 'paydock-failed':
+        case 'powerboard-cancelled':
+        case 'powerboard-failed':
             orderPaymentState = 'Failed'
             orderState = 'Cancelled'
             break
-        case 'paydock-refunded':
+        case 'powerboard-refunded':
             orderPaymentState = 'Paid'
             orderState = 'Cancelled'
             break
@@ -126,6 +125,7 @@ async function getCommercetoolsStatusesByPaydockStatus(paydockStatus) {
     return {orderState, orderPaymentState}
 }
 
+
 async function deleteCustomFields(actions, paymentObject, customFieldsToDelete) {
     const customFields = paymentObject?.custom?.fields;
     if (customFields) {
@@ -135,7 +135,9 @@ async function deleteCustomFields(actions, paymentObject, customFieldsToDelete) 
             }
         });
     }
+
     return actions
 }
+
 
 export default {execute}
